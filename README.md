@@ -3,6 +3,14 @@
 
 Experimental repo for doing source code analysis for eventual use in mitigating disasters due to "vibe coding" (and other use cases)
 
+## Postgres
+
+For now, a local Postgres instance is used for storage:
+
+```bash
+docker run -p 5432:5432 --name postgres -e POSTGRES_PASSWORD=password -d pgvector/pgvector:pg17
+```
+
 ## Fetching Github Repos
 
 A helper program will clone all of the repos you would like to ingest:
