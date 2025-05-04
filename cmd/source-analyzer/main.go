@@ -100,15 +100,15 @@ func ingestSubtrees(roots []*tree_sitter.Node, annotationsModel *models.GoAnnota
 	return nil
 }
 
-func getClosestSubtree(node *tree_sitter.Node, annotationsModel *models.GoAnnotatedSubtreesModel, subtreeNodeFreq map[uintptr]map[string]int, embeddingFn func(map[string]int) []float32) ([]string, error) {
+func getClosestSubtree(node *tree_sitter.Node, annotationsModel *models.GoAnnotatedSubtreesModel, subtreeNodeFreq map[uintptr]map[string]int, embeddingFn func(map[string]int) []float32, limit int) ([]string, error) {
 	embedding := embeddingFn(subtreeNodeFreq[node.Id()])
-	return annotationsModel.FetchSimilar(embedding, 1)
+	return annotationsModel.FetchSimilar(embedding, limit)
 }
 
-func getClosestSubtrees(nodes []*tree_sitter.Node, annotationsModel *models.GoAnnotatedSubtreesModel, source []byte, subtreeNodeFreq map[uintptr]map[string]int, embeddingFn func(map[string]int) []float32) ([][]string, error) {
+func getClosestSubtrees(nodes []*tree_sitter.Node, annotationsModel *models.GoAnnotatedSubtreesModel, source []byte, subtreeNodeFreq map[uintptr]map[string]int, embeddingFn func(map[string]int) []float32, limit int) ([][]string, error) {
 	results := make([][]string, len(nodes))
 	for i, node := range nodes {
-		subtreeString, err := getClosestSubtree(node, annotationsModel, subtreeNodeFreq, embeddingFn)
+		subtreeString, err := getClosestSubtree(node, annotationsModel, subtreeNodeFreq, embeddingFn, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -285,13 +285,14 @@ func ingestRepo(repoLocation string, annotationsModel *models.GoAnnotatedSubtree
 }
 
 func main() {
-	operationPtr := flag.String("operation", "", "values: ingest-file, ingest-repo, ingest-repos, search")
+	operationPtr := flag.String("operation", "", "values: ingest-file, ingest-repo, ingest-repos, search-by-embedding")
 	sourceFilePtr := flag.String("sourceFile", "", "Relative path to the source file in the repo")
 	repoLocationPtr := flag.String("repoLocation", "", "Absolute path to the source repo")
 	repoURLPtr := flag.String("repoURL", "", "Github repo URL")
 	verbosePtr := flag.Bool("verbose", false, "Verbose output")
 	repoURLFilePtr := flag.String("repoURLFile", "", "Repo Location file")
 	reposBaseDirPtr := flag.String("reposBaseDir", "", "Base directory for repos")
+	numResultsPtr := flag.Int("numResults", 1, "Number of results to return")
 
 	flag.Parse()
 
@@ -302,6 +303,7 @@ func main() {
 	verbose := *verbosePtr
 	repoURLFile := *repoURLFilePtr
 	reposBaseDir := *reposBaseDirPtr
+	numResults := *numResultsPtr
 
 	if operation == "" {
 		flag.Usage()
@@ -323,7 +325,7 @@ func main() {
 			flag.Usage()
 			return
 		}
-	} else if operation == "search" {
+	} else if operation == "search-by-embedding" {
 		if sourceFile == "" {
 			flag.Usage()
 			return
@@ -383,18 +385,18 @@ func main() {
 			<-barrier
 		}
 		wg.Wait()
-	} else if operation == "search" {
+	} else if operation == "search-by-embedding" {
 		var subtreeResults [][]string
 		sourceMetadata, err := processSourceFile(sourceFile, verbose)
 		if err != nil {
 			log.Fatal(err)
 		}
-		subtreeResults, err = getClosestSubtrees(sourceMetadata.subtreeRoots, annotatedAst, sourceMetadata.source, sourceMetadata.subtreeNodeFreq, embeddingFn)
+		subtreeResults, err = getClosestSubtrees(sourceMetadata.subtreeRoots, annotatedAst, sourceMetadata.source, sourceMetadata.subtreeNodeFreq, embeddingFn, numResults)
 		if err != nil {
 			log.Fatal(err)
 		}
 		for _, result := range subtreeResults {
-			fmt.Println(strings.Join(result, "\t"))
+			fmt.Println("Provided function:\n", strings.Join(result, "\n\n Embedding Match:\n"))
 		}
 	}
 }
